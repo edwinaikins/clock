@@ -34,6 +34,7 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
  * 1. GET Handshake / Time Sync & Downstream Command Delivery Hook
  */
 app.get('/iclock/cdata', async (req, res) => {
+  console.log(`[Incoming GET Heartbeat] Query Params: ${JSON.stringify(req.query)}`);
   const sn = req.query.SN;
   
   // Construct localized SQL-safe timestamp format (YYYY-MM-DD HH:mm:ss)
