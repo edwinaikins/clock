@@ -1,0 +1,13 @@
+{
+  "name": "zkteco-cloud-adms",
+  "version": "1.0.0",
+  "description": "ZKTeco ADMS Device Listener",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mysql2": "^3.9.7"
+  }
+}
