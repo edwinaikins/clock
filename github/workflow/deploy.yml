@@ -1,0 +1,42 @@
+name: Deploy ZKTeco Cloud Engine to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            mkdir -p ~/zkteco-node/app
+            cd ~/zkteco-node
+            
+            rm -f app/server.js app/package.json docker-compose.yml
+            
+            cat << 'EOF' > docker-compose.yml
+            ${{ secrets.DOCKER_COMPOSE_CONTENT }}
+            EOF
+
+            cat << 'EOF' > app/package.json
+            ${{ secrets.PACKAGE_JSON_CONTENT }}
+            EOF
+
+            cat << 'EOF' > app/server.js
+            ${{ secrets.SERVER_JS_CONTENT }}
+            EOF
+
+            docker compose up -d --build
+            docker ps
