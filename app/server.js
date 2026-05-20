@@ -34,19 +34,20 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
  * 1. GET Handshake / Time Sync & Downstream Command Delivery Hook
  */
 app.get('/iclock/cdata', async (req, res) => {
-  console.log(`[Incoming GET Heartbeat] Query Params: ${JSON.stringify(req.query)}`);
-  const sn = req.query.SN;
+  // Normalize the query keys to handle any device firmware casing quirks (SN vs sn)
+  const sn = (req.query.SN || req.query.sn || '').toUpperCase();
   
+  console.log(`[Incoming GET Heartbeat] Query Params: ${JSON.stringify(req.query)}`);
+  console.log(`[Device Heartbeat] Connection ping from Device SN: ${sn || 'Unknown'}`);
+
   // Construct localized SQL-safe timestamp format (YYYY-MM-DD HH:mm:ss)
   const now = new Date();
   const pad = (num) => String(num).padStart(2, '0');
   const serverTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
                      `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-  console.log(`[Device Heartbeat] Connection ping from Device SN: ${sn || 'Unknown'}`);
-
-  // Downstream Sync: If the device is polling for instructions ('options=all')
-  if (req.query.options === 'all' && sn) {
+  // FIX: If we have any valid Serial Number checking in, check the queue immediately!
+  if (sn) {
     try {
       // Find the oldest pending instruction targeted at this specific device SN
       const [rows] = await pool.query(
@@ -82,7 +83,7 @@ app.get('/iclock/cdata', async (req, res) => {
  * 2. POST Log Data Receiver & Upstream Synchronization Processing Hub
  */
 app.post('/iclock/cdata', async (req, res) => {
-  const sn = req.query.SN;
+  const sn = (req.query.SN || req.query.sn || '').toUpperCase();
   const table = req.query.table;
   const rawBody = req.body;
 
@@ -175,25 +176,26 @@ app.post('/iclock/cdata', async (req, res) => {
   }
 
   // --- BUCKET C: SYNC CALLBACK ACCEPTS AND EXECUTED COMMAND CLOSURES ---
-  if (table === 'options' && rawBody) {
+  // Some firmware sends command updates under table='options' or table='data'
+  if ((table === 'options' || table === 'data') && rawBody) {
     const lines = rawBody.split('\n');
     for (let line of lines) {
-      if (line.includes('Return=')) {
+      if (line.includes('Return=') || line.includes('ID=')) {
         const parts = line.split('&');
         const idPart = parts.find(p => p.startsWith('ID='));
         const retPart = parts.find(p => p.startsWith('Return='));
         
-        if (idPart && retPart) {
+        if (idPart) {
           const cmdId = idPart.split('=')[1];
-          const returnCode = parseInt(retPart.split('=')[1], 10);
+          // Default to 0 (Success) if return code isn't explicitly sent
+          const returnCode = retPart ? parseInt(retPart.split('=')[1], 10) : 0;
           
           console.log(`[Command Callback] Device SN: ${sn} returned Code: ${returnCode} for Command ID: ${cmdId}`);
           
           if (returnCode >= 0) {
-            // Advance status from 'sent' to 'executed' to formally terminate transaction loops
             await pool.query("UPDATE device_commands SET status = 'executed' WHERE id = ?", [cmdId]);
+            console.log(`[Success] Command ID ${cmdId} updated to EXECUTED.`);
           } else {
-            // Re-queue the command for delivery if processing returns an error state
             await pool.query("UPDATE device_commands SET status = 'pending' WHERE id = ?", [cmdId]);
           }
         }
