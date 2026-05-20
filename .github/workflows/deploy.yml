@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # 1. Copies server.js and your new package.json flat into ~/zkteco-node
+      # 1. Copies app code flat into the designated target directory on your instance
       - name: Copy Files to VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -25,7 +25,7 @@ jobs:
           target: "~/zkteco-node"
           strip_components: 1
 
-      # 2. Runs the install and reloads PM2 natively
+      # 2. Automatically provisions application modules and invokes a background PM2 reload sequence
       - name: Restart Application Process Natively
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -35,7 +35,15 @@ jobs:
           port: 22
           script: |
             cd ~/zkteco-node
-            rm -rf app
             npm install --production
-            pm2 describe zk-adms-server > /dev/null && pm2 reload zk-adms-server || pm2 start server.js --name "zk-adms-server"
+            
+            # Check if server.js is managed under ANY process name to run a safe background reload
+            if pm2 info server > /dev/null 2>&1 || pm2 info zk-adms-server > /dev/null 2>&1 || pm2 info zk-adms- > /dev/null 2>&1; then
+              echo "Active execution cluster identified. Deploying zero-downtime application reload..."
+              pm2 reload all --update-env
+            else
+              echo "No tracking container discovered. Binding fresh PM2 instance..."
+              pm2 start server.js --name "zk-adms-server"
+            fi
+            
             pm2 save
