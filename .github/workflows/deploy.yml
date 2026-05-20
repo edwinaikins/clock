@@ -33,12 +33,14 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          # Fails fast after 30 seconds if a remote command accidentally locks up
+          command_timeout: 30s
           script: |
             cd ~/zkteco-node
-            npm install --production
+            npm install --omit=dev
             
-            # Check if server.js is managed under ANY process name to run a safe background reload
-            if pm2 info server > /dev/null 2>&1 || pm2 info zk-adms-server > /dev/null 2>&1 || pm2 info zk-adms- > /dev/null 2>&1; then
+            # Read clean JSON from PM2 to see if server.js is already running under any process name
+            if pm2 jlist | grep -q "server.js"; then
               echo "Active execution cluster identified. Deploying zero-downtime application reload..."
               pm2 reload all --update-env
             else
