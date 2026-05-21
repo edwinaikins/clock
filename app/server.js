@@ -87,6 +87,13 @@ app.post('/iclock/cdata', async (req, res) => {
   const table = req.query.table;
   const rawBody = req.body;
 
+  // CRITICAL INTERCEPT HOOK:
+  console.log(`\n==================================================`);
+  console.log(`[RAW INCOMING DUMP] TABLE IDENTIFIER: ${table}`);
+  console.log(`==================================================`);
+  console.log(req.body); 
+  console.log(`================== END OF DUMP ==================\n`);
+
   // --- BUCKET A: PROCESS TRANSACTIONS FOR ATTENDANCE RECORD SWIPES ---
   if (table === 'ATTLOG' && rawBody) {
     console.log(`[Data Push] Processing log package stack from terminal SN: ${sn || 'Unknown'}`);
