@@ -39,9 +39,9 @@ jobs:
             cd ~/zkteco-node
             npm install --omit=dev
             
-            # Read clean JSON from PM2 to see if server.js is already running under any process name
-            if pm2 jlist | grep -q "server.js"; then
-              echo "Active execution cluster identified. Deploying zero-downtime application reload..."
+            # Use standard Linux process lookups to check if node/pm2 is actively executing server.js
+            if ps aux | grep -v grep | grep -q "server.js"; then
+              echo "Active execution cluster identified. Deploying application reload..."
               pm2 reload all --update-env
             else
               echo "No tracking container discovered. Binding fresh PM2 instance..."
